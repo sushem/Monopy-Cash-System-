@@ -1,0 +1,178 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: "Select APK build type"
+        required: true
+        type: choice
+        options:
+          - debug
+          - release
+          - both
+        default: both
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: 8.7
+          cache-disabled: true
+
+      - name: Prepare release keystore
+        if: ${{ inputs.build_type == 'release' || inputs.build_type == 'both' }}
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          MONOPY_KEYSTORE_PASSWORD: ${{ secrets.MONOPY_KEYSTORE_PASSWORD || 'monopycash' }}
+          MONOPY_KEY_ALIAS: ${{ secrets.MONOPY_KEY_ALIAS || 'monopy' }}
+          MONOPY_KEY_PASSWORD: ${{ secrets.MONOPY_KEY_PASSWORD || 'monopycash' }}
+        run: |
+          mkdir -p keystore
+          if [ -n "$RELEASE_KEYSTORE_BASE64" ]; then
+            echo "Restoring keystore from RELEASE_KEYSTORE_BASE64 secret."
+            echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > keystore/release.jks
+          else
+            echo "No keystore secret set; generating a throwaway signing key for this build."
+            keytool -genkeypair -v \
+              -keystore keystore/release.jks \
+              -storetype PKCS12 \
+              -alias "$MONOPY_KEY_ALIAS" \
+              -storepass "$MONOPY_KEYSTORE_PASSWORD" \
+              -keypass "$MONOPY_KEY_PASSWORD" \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Monopy Cash, OU=Monopy, O=Monopy, L=, ST=, C=IN"
+          fi
+
+      - name: Build debug APK
+        if: ${{ inputs.build_type == 'debug' || inputs.build_type == 'both' }}
+        run: gradle assembleDebug
+
+      - name: Build release APK
+        if: ${{ inputs.build_type == 'release' || inputs.build_type == 'both' }}
+        env:
+          MONOPY_KEYSTORE_PASSWORD: ${{ secrets.MONOPY_KEYSTORE_PASSWORD || 'monopycash' }}
+          MONOPY_KEY_ALIAS: ${{ secrets.MONOPY_KEY_ALIAS || 'monopy' }}
+          MONOPY_KEY_PASSWORD: ${{ secrets.MONOPY_KEY_PASSWORD || 'monopycash' }}
+        run: gradle assembleRelease
+
+      - name: Rename debug APK
+        if: ${{ inputs.build_type == 'debug' || inputs.build_type == 'both' }}
+        run: |
+          mv app/build/outputs/apk/debug/app-debug.apk \
+             app/build/outputs/apk/debug/MonopyCash-debug.apk
+
+      - name: Rename release APK
+        if: ${{ inputs.build_type == 'release' || inputs.build_type == 'both' }}
+        run: |
+          mv app/build/outputs/apk/release/app-release.apk \
+             app/build/outputs/apk/release/MonopyCash.apk
+
+      - name: Upload debug APK
+        if: ${{ inputs.build_type == 'debug' || inputs.build_type == 'both' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: MonopyCash-debug-apk
+          path: app/build/outputs/apk/debug/MonopyCash-debug.apk
+          if-no-files-found: error
+
+      - name: Upload release APK
+        if: ${{ inputs.build_type == 'release' || inputs.build_type == 'both' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: MonopyCash-apk
+          path: app/build/outputs/apk/release/MonopyCash.apk
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download debug APK
+        if: ${{ inputs.build_type == 'debug' || inputs.build_type == 'both' }}
+        uses: actions/download-artifact@v7
+        with:
+          name: MonopyCash-debug-apk
+          path: apks
+
+      - name: Download release APK
+        if: ${{ inputs.build_type == 'release' || inputs.build_type == 'both' }}
+        uses: actions/download-artifact@v7
+        with:
+          name: MonopyCash-apk
+          path: apks
+
+      - name: Verify downloaded files
+        run: |
+          echo "Downloaded APKs:"
+          find apks -type f -name "*.apk" -ls
+
+      - name: Create GitHub Release - Debug
+        if: ${{ inputs.build_type == 'debug' }}
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Build ${{ github.run_number }}
+          body: |
+            Automated build from commit ${{ github.sha }}.
+
+            Build type: `debug`
+
+            - `MonopyCash-debug.apk` — debuggable, for testing
+          files: |
+            apks/MonopyCash-debug.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release - Release
+        if: ${{ inputs.build_type == 'release' }}
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Build ${{ github.run_number }}
+          body: |
+            Automated build from commit ${{ github.sha }}.
+
+            Build type: `release`
+
+            - `MonopyCash.apk` — release build, ready to install
+          files: |
+            apks/MonopyCash.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release - Both
+        if: ${{ inputs.build_type == 'both' }}
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Build ${{ github.run_number }}
+          body: |
+            Automated build from commit ${{ github.sha }}.
+
+            Build type: `both`
+
+            - `MonopyCash-debug.apk` — debuggable, for testing
+            - `MonopyCash.apk` — release build, ready to install
+          files: |
+            apks/MonopyCash-debug.apk
+            apks/MonopyCash.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
