@@ -14,10 +14,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -35,6 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.monopy.cash.model.Account
+import com.monopy.cash.model.Asset
 import com.monopy.cash.model.DEFAULT_STARTING_CASH
 import com.monopy.cash.model.PlayerColors
 
@@ -189,4 +193,115 @@ fun ConfirmDialog(
         confirmButton = { TextButton(onClick = onConfirm) { Text(confirmLabel) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
+}
+
+/** Asks for a single amount — used for taking and repaying loans. */
+@Composable
+fun AmountDialog(
+    title: String,
+    label: String,
+    confirmLabel: String,
+    supportingText: String? = null,
+    initialAmount: Long = 0L,
+    onDismiss: () -> Unit,
+    onConfirm: (Long) -> Unit
+) {
+    var amountText by remember {
+        mutableStateOf(if (initialAmount > 0L) initialAmount.toString() else "")
+    }
+    val amount = amountText.toLongOrNull() ?: 0L
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (supportingText != null) {
+                    Text(supportingText, style = MaterialTheme.typography.bodyMedium)
+                }
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { input -> amountText = input.filter { it.isDigit() }.take(9).trimStart('0') },
+                    label = { Text(label) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = amount > 0L, onClick = { onConfirm(amount) }) { Text(confirmLabel) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+/** Add or rename a property and set how many houses stand on it. */
+@Composable
+fun AssetDialog(
+    existing: Asset?,
+    onDismiss: () -> Unit,
+    onConfirm: (name: String, houses: Int) -> Unit,
+    onDelete: (() -> Unit)? = null
+) {
+    var name by remember { mutableStateOf(existing?.name.orEmpty()) }
+    var houses by remember { mutableIntStateOf(existing?.houses ?: 0) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (existing == null) "Add property" else "Edit property") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Property name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text("Houses", style = MaterialTheme.typography.labelLarge)
+                HouseStepper(houses = houses, onChange = { houses = it })
+                if (onDelete != null) {
+                    TextButton(onClick = onDelete) {
+                        Text("Remove property", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = name.isNotBlank(), onClick = { onConfirm(name.trim(), houses) }) {
+                Text(if (existing == null) "Add" else "Save")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+/** −/+ control for house counts, capped at a hotel. */
+@Composable
+fun HouseStepper(houses: Int, onChange: (Int) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = { onChange((houses - 1).coerceAtLeast(0)) }, enabled = houses > 0) {
+            Icon(Icons.Filled.Remove, contentDescription = "One house fewer")
+        }
+        Text(
+            text = houseLabel(houses),
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        )
+        IconButton(
+            onClick = { onChange((houses + 1).coerceAtMost(Asset.MAX_HOUSES)) },
+            enabled = houses < Asset.MAX_HOUSES
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = "One house more")
+        }
+    }
+}
+
+/** "3 houses", or "Hotel" once the fifth building goes up. */
+fun houseLabel(houses: Int): String = when (houses) {
+    0 -> "No houses"
+    1 -> "1 house"
+    Asset.MAX_HOUSES -> "Hotel"
+    else -> "$houses houses"
 }

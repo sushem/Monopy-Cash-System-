@@ -111,8 +111,13 @@ fun AccountListScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     if (players.isNotEmpty()) {
+                        val lent = players.sumOf { it.loan }
                         Text(
-                            text = "In play ${formatMoney(players.sumOf { it.balance })}",
+                            text = if (lent > 0) {
+                                "In play ${formatMoney(players.sumOf { it.balance })} · lent ${formatMoney(lent)}"
+                            } else {
+                                "In play ${formatMoney(players.sumOf { it.balance })}"
+                            },
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -167,11 +172,25 @@ private fun AccountRow(account: Account, onClick: () -> Unit) {
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
-                Text(
-                    text = if (account.isBank) "Bank" else "${account.transactions.size} transactions",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = when {
+                            account.isBank -> "Bank"
+                            account.assets.isEmpty() -> "No properties"
+                            else -> "${account.assets.size} properties · ${account.assets.sumOf { it.houses }} houses"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (account.loan > 0) {
+                        Text(
+                            text = " · owes ${formatMoney(account.loan)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
             }
             Text(
                 text = formatMoney(account.balance),

@@ -32,6 +32,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -45,8 +46,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.monopy.cash.model.Account
+import com.monopy.cash.model.Asset
 
-private val QuickAmounts = listOf(1L, 5L, 10L, 20L, 50L, 100L, 500L)
+private val QuickAmounts = listOf(50L, 100L, 500L)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,7 +59,12 @@ fun AccountDetailScreen(
     onEdit: () -> Unit,
     onAdjust: (amount: Long) -> Unit,
     onTransfer: (counterpartyId: String, amount: Long, isIncoming: Boolean) -> Unit,
-    onUndo: (transactionId: String) -> Unit
+    onUndo: (transactionId: String) -> Unit,
+    onBorrow: () -> Unit,
+    onRepay: () -> Unit,
+    onAddAsset: () -> Unit,
+    onEditAsset: (assetId: String) -> Unit,
+    onChangeHouses: (assetId: String, delta: Int) -> Unit
 ) {
     var isAdding by remember { mutableStateOf(true) }
     var amountText by remember { mutableStateOf("") }
@@ -95,6 +102,10 @@ fun AccountDetailScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item { BalanceCard(account) }
+
+            if (!account.isBank) {
+                item { LoanCard(account = account, onBorrow = onBorrow, onRepay = onRepay) }
+            }
 
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
@@ -205,6 +216,47 @@ fun AccountDetailScreen(
                 }
             }
 
+            if (!account.isBank) {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = if (account.assets.isEmpty()) {
+                                "Properties"
+                            } else {
+                                "Properties (${account.assets.size}) · ${account.assets.sumOf { it.houses }} houses"
+                            },
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        TextButton(onClick = onAddAsset) { Text("Add property") }
+                    }
+                }
+
+                if (account.assets.isEmpty()) {
+                    item {
+                        Text(
+                            text = "No properties yet.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                items(account.assets, key = { "asset-" + it.id }) { asset ->
+                    AssetRow(
+                        asset = asset,
+                        onEdit = { onEditAsset(asset.id) },
+                        onChangeHouses = { delta -> onChangeHouses(asset.id, delta) }
+                    )
+                }
+            }
+
             item {
                 Text(
                     text = "History",
@@ -248,6 +300,88 @@ fun AccountDetailScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun LoanCard(account: Account, onBorrow: () -> Unit, onRepay: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (account.loan > 0) {
+                MaterialTheme.colorScheme.errorContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            }
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Owed to the bank",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = formatMoney(account.loan),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Text(
+                    text = "Net " + formatMoney(account.balance - account.loan),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.padding(top = 10.dp)
+            ) {
+                OutlinedButton(onClick = onBorrow, modifier = Modifier.weight(1f)) {
+                    Text("Take loan")
+                }
+                OutlinedButton(
+                    onClick = onRepay,
+                    enabled = account.loan > 0,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Repay")
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AssetRow(asset: Asset, onEdit: () -> Unit, onChangeHouses: (Int) -> Unit) {
+    Card(
+        onClick = onEdit,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = asset.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = houseLabel(asset.houses),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            HouseStepper(houses = asset.houses, onChange = { onChangeHouses(it - asset.houses) })
         }
     }
 }

@@ -2,6 +2,7 @@ package com.monopy.cash.data
 
 import android.content.Context
 import com.monopy.cash.model.Account
+import com.monopy.cash.model.Asset
 import com.monopy.cash.model.DEFAULT_BANK_CASH
 import com.monopy.cash.model.Transaction
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -81,6 +82,84 @@ class GameStore private constructor(context: Context) {
         }
     }
 
+    /**
+     * Lends [amount] from the bank to a player: cash goes up, and the same amount is
+     * added to the player's loan counter, which is tracked apart from their balance.
+     */
+    fun borrowFromBank(playerId: String, amount: Long) {
+        if (amount <= 0L) return
+        val player = account(playerId) ?: return
+        if (player.isBank) return
+        update { accounts ->
+            accounts.map { account ->
+                when {
+                    account.id == playerId ->
+                        account.applyChange(amount, "Loan from bank", loanDelta = amount)
+                    account.isBank -> account.applyChange(-amount, "Loan to ${player.name}")
+                    else -> account
+                }
+            }
+        }
+    }
+
+    /** Pays cash back to the bank, clearing that much of the player's loan. */
+    fun repayLoan(playerId: String, amount: Long) {
+        val player = account(playerId) ?: return
+        if (player.isBank) return
+        val repayment = amount.coerceAtMost(player.loan)
+        if (repayment <= 0L) return
+        update { accounts ->
+            accounts.map { account ->
+                when {
+                    account.id == playerId ->
+                        account.applyChange(-repayment, "Loan repayment", loanDelta = -repayment)
+                    account.isBank -> account.applyChange(repayment, "Repayment from ${player.name}")
+                    else -> account
+                }
+            }
+        }
+    }
+
+    fun addAsset(playerId: String, name: String, houses: Int) {
+        if (name.isBlank()) return
+        val asset = Asset(name = name.trim(), houses = houses.coerceIn(0, Asset.MAX_HOUSES))
+        updateAccount(playerId) { it.copy(assets = it.assets + asset) }
+    }
+
+    fun editAsset(playerId: String, assetId: String, name: String, houses: Int) {
+        if (name.isBlank()) return
+        updateAccount(playerId) { account ->
+            account.copy(
+                assets = account.assets.map { asset ->
+                    if (asset.id == assetId) {
+                        asset.copy(name = name.trim(), houses = houses.coerceIn(0, Asset.MAX_HOUSES))
+                    } else {
+                        asset
+                    }
+                }
+            )
+        }
+    }
+
+    /** Adds or removes a single house on an asset, clamped to 0..[Asset.MAX_HOUSES]. */
+    fun changeHouses(playerId: String, assetId: String, delta: Int) {
+        updateAccount(playerId) { account ->
+            account.copy(
+                assets = account.assets.map { asset ->
+                    if (asset.id == assetId) {
+                        asset.copy(houses = (asset.houses + delta).coerceIn(0, Asset.MAX_HOUSES))
+                    } else {
+                        asset
+                    }
+                }
+            )
+        }
+    }
+
+    fun removeAsset(playerId: String, assetId: String) {
+        updateAccount(playerId) { account -> account.copy(assets = account.assets.filterNot { it.id == assetId }) }
+    }
+
     /** Reverses a transaction and drops it from the history. */
     fun undoTransaction(accountId: String, transactionId: String) {
         update { accounts ->
@@ -91,6 +170,7 @@ class GameStore private constructor(context: Context) {
                     val transaction = account.transactions.firstOrNull { it.id == transactionId } ?: return@map account
                     account.copy(
                         balance = account.balance - transaction.amount,
+                        loan = account.loan - transaction.loanDelta,
                         transactions = account.transactions.filterNot { it.id == transactionId }
                     )
                 }
@@ -103,9 +183,14 @@ class GameStore private constructor(context: Context) {
         update { defaultAccounts() }
     }
 
-    private fun Account.applyChange(amount: Long, note: String) = copy(
+    private fun updateAccount(id: String, transform: (Account) -> Account) {
+        update { accounts -> accounts.map { if (it.id == id) transform(it) else it } }
+    }
+
+    private fun Account.applyChange(amount: Long, note: String, loanDelta: Long = 0) = copy(
         balance = balance + amount,
-        transactions = transactions + Transaction(amount = amount, note = note)
+        loan = loan + loanDelta,
+        transactions = transactions + Transaction(amount = amount, note = note, loanDelta = loanDelta)
     )
 
     private fun update(transform: (List<Account>) -> List<Account>) {

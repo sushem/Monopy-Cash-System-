@@ -16,8 +16,11 @@ import com.monopy.cash.model.PlayerColors
 import com.monopy.cash.ui.AccountDetailScreen
 import com.monopy.cash.ui.AccountListScreen
 import com.monopy.cash.ui.AddPlayerDialog
+import com.monopy.cash.ui.AmountDialog
+import com.monopy.cash.ui.AssetDialog
 import com.monopy.cash.ui.ConfirmDialog
 import com.monopy.cash.ui.EditAccountDialog
+import com.monopy.cash.ui.formatMoney
 import com.monopy.cash.ui.theme.MonopyTheme
 
 class MainActivity : ComponentActivity() {
@@ -40,6 +43,8 @@ private fun MonopyApp(store: GameStore) {
     var showAddPlayer by remember { mutableStateOf(false) }
     var showEditFor by remember { mutableStateOf<String?>(null) }
     var showNewGameConfirm by remember { mutableStateOf(false) }
+    var loanDialog by remember { mutableStateOf<LoanDialog?>(null) }
+    var assetDialog by remember { mutableStateOf<AssetDialogTarget?>(null) }
 
     val selected = accounts.firstOrNull { it.id == selectedId }
 
@@ -60,7 +65,12 @@ private fun MonopyApp(store: GameStore) {
                     store.transfer(fromId = selected.id, toId = counterpartyId, amount = amount)
                 }
             },
-            onUndo = { transactionId -> store.undoTransaction(selected.id, transactionId) }
+            onUndo = { transactionId -> store.undoTransaction(selected.id, transactionId) },
+            onBorrow = { loanDialog = LoanDialog.Borrow },
+            onRepay = { loanDialog = LoanDialog.Repay },
+            onAddAsset = { assetDialog = AssetDialogTarget.New },
+            onEditAsset = { assetId -> assetDialog = AssetDialogTarget.Existing(assetId) },
+            onChangeHouses = { assetId, delta -> store.changeHouses(selected.id, assetId, delta) }
         )
     } else {
         AccountListScreen(
@@ -104,6 +114,52 @@ private fun MonopyApp(store: GameStore) {
         )
     }
 
+    if (selected != null && loanDialog != null) {
+        val borrowing = loanDialog == LoanDialog.Borrow
+        AmountDialog(
+            title = if (borrowing) "Take a loan" else "Repay the bank",
+            label = "Amount",
+            confirmLabel = if (borrowing) "Borrow" else "Repay",
+            supportingText = if (borrowing) {
+                "The bank hands over the cash and the same amount is added to what ${selected.name} owes."
+            } else {
+                "Outstanding loan: ${formatMoney(selected.loan)}"
+            },
+            initialAmount = if (borrowing) 0L else selected.loan,
+            onDismiss = { loanDialog = null },
+            onConfirm = { amount ->
+                if (borrowing) store.borrowFromBank(selected.id, amount) else store.repayLoan(selected.id, amount)
+                loanDialog = null
+            }
+        )
+    }
+
+    val assetTarget = assetDialog
+    if (selected != null && assetTarget != null) {
+        val existing = (assetTarget as? AssetDialogTarget.Existing)
+            ?.let { target -> selected.assets.firstOrNull { it.id == target.assetId } }
+        if (assetTarget is AssetDialogTarget.New || existing != null) {
+            AssetDialog(
+                existing = existing,
+                onDismiss = { assetDialog = null },
+                onConfirm = { name, houses ->
+                    if (existing == null) {
+                        store.addAsset(selected.id, name, houses)
+                    } else {
+                        store.editAsset(selected.id, existing.id, name, houses)
+                    }
+                    assetDialog = null
+                },
+                onDelete = existing?.let {
+                    {
+                        store.removeAsset(selected.id, it.id)
+                        assetDialog = null
+                    }
+                }
+            )
+        }
+    }
+
     if (showNewGameConfirm) {
         ConfirmDialog(
             title = "Start a new game?",
@@ -117,4 +173,11 @@ private fun MonopyApp(store: GameStore) {
             }
         )
     }
+}
+
+private enum class LoanDialog { Borrow, Repay }
+
+private sealed interface AssetDialogTarget {
+    data object New : AssetDialogTarget
+    data class Existing(val assetId: String) : AssetDialogTarget
 }

@@ -9,13 +9,20 @@ no paper money, no arguments about who paid whom.
   token colour, name and current cash.
 - **Tap a row** to open that account: big balance, add/subtract controls and the full
   history of every movement.
-- **Add or subtract cash** with a numeric field plus quick-tap Monopoly denominations
-  (1, 5, 10, 20, 50, 100, 500).
+- **Add or subtract cash** with a numeric field plus quick-tap amounts (50, 100, 500).
 - **Optional counterparty.** Leave it on "Nobody" for a plain balance adjustment, or pick
   the bank/another player and the same amount is recorded on both sides in one tap.
+- **Loans from the bank**, counted separately from cash. "Take loan" moves cash out of the
+  bank and adds the same amount to what the player owes; "Repay" does the reverse and is
+  capped at the outstanding balance. The account screen shows the loan and the net position
+  (cash minus loan), and the list row flags anyone who owes money.
+- **Properties per player**, each with a name and the houses standing on it (0-4 houses,
+  or a hotel at 5). Add, rename and remove them from the player's own screen, or step the
+  house count up and down straight from the row.
 - **Editable name and colour** for players and for the bank, from the pencil icon in the
   account screen. Players can also be removed there.
-- **Undo** any entry from the history — it reverses the amount and drops the row.
+- **Undo** any entry from the history — it reverses the amount and drops the row, including
+  the loan side of a borrow or repayment.
 - **Add players** with a starting amount (default $1,500), optionally withdrawn from the
   bank so the totals stay honest.
 - **New game** from the overflow menu resets the bank ($20,580) and clears all players.
