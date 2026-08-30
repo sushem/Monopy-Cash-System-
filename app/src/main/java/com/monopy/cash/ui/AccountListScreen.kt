@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -48,6 +49,8 @@ fun AccountListScreen(
     accounts: List<Account>,
     onOpenAccount: (String) -> Unit,
     onAddPlayer: () -> Unit,
+    onTransfer: () -> Unit,
+    onOpenSettings: () -> Unit,
     onNewGame: () -> Unit
 ) {
     val bank = accounts.firstOrNull { it.isBank }
@@ -68,6 +71,13 @@ fun AccountListScreen(
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(
+                            text = { Text("Settings") },
+                            onClick = {
+                                menuOpen = false
+                                onOpenSettings()
+                            }
+                        )
+                        DropdownMenuItem(
                             text = { Text("New game") },
                             onClick = {
                                 menuOpen = false
@@ -79,11 +89,25 @@ fun AccountListScreen(
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onAddPlayer,
-                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                text = { Text("Add player") }
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (accounts.size >= 2) {
+                    ExtendedFloatingActionButton(
+                        onClick = onTransfer,
+                        icon = { Icon(Icons.Filled.SwapHoriz, contentDescription = null) },
+                        text = { Text("Transfer") },
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+                ExtendedFloatingActionButton(
+                    onClick = onAddPlayer,
+                    icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                    text = { Text("Add player") }
+                )
+            }
         }
     ) { innerPadding ->
         LazyColumn(
@@ -114,9 +138,9 @@ fun AccountListScreen(
                         val lent = players.sumOf { it.loan }
                         Text(
                             text = if (lent > 0) {
-                                "In play ${formatMoney(players.sumOf { it.balance })} · lent ${formatMoney(lent)}"
+                                "In play ${money(players.sumOf { it.balance })} · lent ${money(lent)}"
                             } else {
-                                "In play ${formatMoney(players.sumOf { it.balance })}"
+                                "In play ${money(players.sumOf { it.balance })}"
                             },
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -184,7 +208,7 @@ private fun AccountRow(account: Account, onClick: () -> Unit) {
                     )
                     if (account.loan > 0) {
                         Text(
-                            text = " · owes ${formatMoney(account.loan)}",
+                            text = " · owes ${money(account.loan)}",
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.error
@@ -193,7 +217,7 @@ private fun AccountRow(account: Account, onClick: () -> Unit) {
                 }
             }
             Text(
-                text = formatMoney(account.balance),
+                text = money(account.balance),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = if (account.balance < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface

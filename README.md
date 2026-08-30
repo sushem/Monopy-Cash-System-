@@ -9,7 +9,8 @@ no paper money, no arguments about who paid whom.
   token colour, name and current cash.
 - **Tap a row** to open that account: big balance, add/subtract controls and the full
   history of every movement.
-- **Add or subtract cash** with a numeric field plus quick-tap amounts (50, 100, 500).
+- **Add or subtract cash** with a numeric field plus quick-tap amounts (50, 100, 500 out
+  of the box, editable in Settings).
 - **Optional counterparty.** Leave it on "Nobody" for a plain balance adjustment, or pick
   the bank/another player and the same amount is recorded on both sides in one tap.
 - **Loans from the bank**, counted separately from cash. "Take loan" moves cash out of the
@@ -25,6 +26,10 @@ no paper money, no arguments about who paid whom.
   the loan side of a borrow or repayment.
 - **Add players** with a starting amount (default $1,500), optionally withdrawn from the
   bank so the totals stay honest.
+- **Quick transfer** from the button beside "Add player": two scroll wheels pick who pays
+  and who gets paid, the amount takes the same quick shortcuts, and one tap sends it.
+- **Settings** (overflow menu) chooses the currency symbol used everywhere in the app, and
+  adds or removes the quick cash shortcuts.
 - **New game** from the overflow menu resets the bank ($20,580) and clears all players.
 - Everything is stored on the device, so a game survives closing the app.
 

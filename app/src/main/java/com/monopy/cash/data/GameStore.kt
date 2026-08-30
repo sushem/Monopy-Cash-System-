@@ -4,11 +4,13 @@ import android.content.Context
 import com.monopy.cash.model.Account
 import com.monopy.cash.model.Asset
 import com.monopy.cash.model.DEFAULT_BANK_CASH
+import com.monopy.cash.model.Settings
 import com.monopy.cash.model.Transaction
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * Holds every account for the current game and persists it to shared preferences
@@ -20,6 +22,9 @@ class GameStore private constructor(context: Context) {
 
     private val _accounts = MutableStateFlow(load())
     val accounts: StateFlow<List<Account>> = _accounts.asStateFlow()
+
+    private val _settings = MutableStateFlow(loadSettings())
+    val settings: StateFlow<Settings> = _settings.asStateFlow()
 
     fun account(id: String?): Account? = _accounts.value.firstOrNull { it.id == id }
 
@@ -178,6 +183,38 @@ class GameStore private constructor(context: Context) {
         }
     }
 
+    fun setCurrency(symbol: String) {
+        if (symbol.isBlank()) return
+        updateSettings { it.copy(currencySymbol = symbol) }
+    }
+
+    /** Adds an amount to the quick-tap row, keeping it sorted and free of duplicates. */
+    fun addQuickAmount(amount: Long) {
+        if (amount <= 0L) return
+        updateSettings { settings ->
+            if (amount in settings.quickAmounts || settings.quickAmounts.size >= Settings.MAX_QUICK_AMOUNTS) {
+                settings
+            } else {
+                settings.copy(quickAmounts = (settings.quickAmounts + amount).sorted())
+            }
+        }
+    }
+
+    fun removeQuickAmount(amount: Long) {
+        updateSettings { settings -> settings.copy(quickAmounts = settings.quickAmounts - amount) }
+    }
+
+    private fun updateSettings(transform: (Settings) -> Settings) {
+        val updated = transform(_settings.value)
+        _settings.value = updated
+        prefs.edit().putString(KEY_SETTINGS, updated.toJson().toString()).apply()
+    }
+
+    private fun loadSettings(): Settings {
+        val raw = prefs.getString(KEY_SETTINGS, null) ?: return Settings()
+        return runCatching { Settings.fromJson(JSONObject(raw)) }.getOrDefault(Settings())
+    }
+
     /** Clears every account and starts over with a fresh bank. */
     fun newGame() {
         update { defaultAccounts() }
@@ -226,6 +263,7 @@ class GameStore private constructor(context: Context) {
     companion object {
         private const val PREFS_NAME = "monopy_cash"
         private const val KEY_ACCOUNTS = "accounts"
+        private const val KEY_SETTINGS = "settings"
 
         @Volatile
         private var instance: GameStore? = null

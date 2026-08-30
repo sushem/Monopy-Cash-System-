@@ -48,13 +48,12 @@ import androidx.compose.ui.unit.dp
 import com.monopy.cash.model.Account
 import com.monopy.cash.model.Asset
 
-private val QuickAmounts = listOf(50L, 100L, 500L)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountDetailScreen(
     account: Account,
     otherAccounts: List<Account>,
+    quickAmounts: List<Long>,
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onAdjust: (amount: Long) -> Unit,
@@ -138,11 +137,11 @@ fun AccountDetailScreen(
 
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(QuickAmounts) { quick ->
+                    items(quickAmounts) { quick ->
                         FilterChip(
                             selected = false,
                             onClick = { amountText = (amount + quick).toString() },
-                            label = { Text("+${formatMoney(quick)}") }
+                            label = { Text("+${money(quick)}") }
                         )
                     }
                     item {
@@ -210,7 +209,7 @@ fun AccountDetailScreen(
                 ) {
                     val target = counterparty?.let { if (isAdding) " from ${it.name}" else " to ${it.name}" } ?: ""
                     Text(
-                        text = if (isAdding) "Add ${formatMoney(amount)}$target" else "Subtract ${formatMoney(amount)}$target",
+                        text = if (isAdding) "Add ${money(amount)}$target" else "Subtract ${money(amount)}$target",
                         style = MaterialTheme.typography.titleMedium
                     )
                 }
@@ -280,7 +279,7 @@ fun AccountDetailScreen(
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = formatSigned(transaction.amount),
+                            text = signedMoney(transaction.amount),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = if (transaction.amount < 0) {
@@ -325,13 +324,13 @@ private fun LoanCard(account: Account, onBorrow: () -> Unit, onRepay: () -> Unit
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = formatMoney(account.loan),
+                        text = money(account.loan),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold
                     )
                 }
                 Text(
-                    text = "Net " + formatMoney(account.balance - account.loan),
+                    text = "Net " + money(account.balance - account.loan),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -406,7 +405,7 @@ private fun BalanceCard(account: Account) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    text = formatMoney(account.balance),
+                    text = money(account.balance),
                     style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold,
                     color = if (account.balance < 0) {
