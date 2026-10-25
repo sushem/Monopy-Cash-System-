@@ -33,6 +33,44 @@ no paper money, no arguments about who paid whom.
 - **New game** from the overflow menu resets the bank ($20,580) and clears all players.
 - Everything is stored on the device, so a game survives closing the app.
 
+## The board
+
+A second tab plays the Marathi **Business — नवा व्यापार** set from the box photos.
+
+- **40 squares** around the board: eight colour groups of Indian cities, four transports
+  (रेल्वे, मोटर बोट, बस, एअर इंडिया), two utilities (इलेक्ट्रिक कंपनी, पाणी खाते), the two
+  resorts (SPORTS CLUB, WATER WORLD), two taxes, GO, तुरुंग, विश्रांती and तुरुंगात जा.
+- **Title-deed cards** — tap any square for its card: price, the full rent ladder up to a
+  hotel, what a house costs, and who owns it.
+- **सुवर्ण संधी** — a 16-card deck, drawn when you land on a "?" square and applied for you.
+- **Dice** with real pip faces. Rolling moves the token and settles everything that
+  follows: salary for passing GO, buy-or-pass on an unowned square, rent paid straight to
+  the owner, doubles rolling again, three doubles sending you to jail, bail, and taxes.
+- **Houses** go up from the title-deed card once you hold a whole colour group.
+- Every move is written to the table log, and all of it is cash in the same accounts the
+  Cash tab tracks, so the two always agree.
+
+### A note on the numbers
+
+The square names come from your photos. The rent ladders printed on the cards are too
+small to read in them, so they are **derived on Monopoly's proportions** and rounded —
+they play sensibly but they are not your set's exact figures. Everything (names, prices,
+rents, house costs) sits in one file, `app/src/main/java/com/monopy/cash/model/Board.kt`;
+correct a value there and the board, the cards and rent collection all follow.
+
+## Playing together
+
+One device hosts and the others join it over the same Wi-Fi — no account, no internet, no
+server to run.
+
+1. On the host: **Wi-Fi icon → Host the game**. It shows an address like `192.168.1.5:8742`.
+2. On every other device: **Wi-Fi icon →** type your name and that address **→ Join**.
+
+A joining device is seated as a player (with ₹1,500 from the bank) and can play its own
+turn; the host applies every rule and hands the whole game back out, so no device drifts
+from the others. While joined, players, properties and the board are managed by the host;
+your own cash actions and turns still work from your device.
+
 ## Building an APK
 
 Builds run through GitHub Actions — **Actions → Build APK → Run workflow**, then choose
