@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -47,11 +48,14 @@ import com.monopy.cash.model.Account
 @Composable
 fun AccountListScreen(
     accounts: List<Account>,
+    isGuest: Boolean,
     onOpenAccount: (String) -> Unit,
     onAddPlayer: () -> Unit,
     onTransfer: () -> Unit,
     onOpenSettings: () -> Unit,
-    onNewGame: () -> Unit
+    onOpenMultiplayer: () -> Unit,
+    onNewGame: () -> Unit,
+    bottomBar: @Composable () -> Unit
 ) {
     val bank = accounts.firstOrNull { it.isBank }
     val players = accounts.filterNot { it.isBank }
@@ -66,6 +70,9 @@ fun AccountListScreen(
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 ),
                 actions = {
+                    IconButton(onClick = onOpenMultiplayer) {
+                        Icon(Icons.Filled.Wifi, contentDescription = "Multiplayer")
+                    }
                     IconButton(onClick = { menuOpen = true }) {
                         Icon(Icons.Filled.MoreVert, contentDescription = "More")
                     }
@@ -77,17 +84,20 @@ fun AccountListScreen(
                                 onOpenSettings()
                             }
                         )
-                        DropdownMenuItem(
-                            text = { Text("New game") },
-                            onClick = {
-                                menuOpen = false
-                                onNewGame()
-                            }
-                        )
+                        if (!isGuest) {
+                            DropdownMenuItem(
+                                text = { Text("New game") },
+                                onClick = {
+                                    menuOpen = false
+                                    onNewGame()
+                                }
+                            )
+                        }
                     }
                 }
             )
         },
+        bottomBar = bottomBar,
         floatingActionButton = {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -102,11 +112,13 @@ fun AccountListScreen(
                         contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                 }
-                ExtendedFloatingActionButton(
-                    onClick = onAddPlayer,
-                    icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                    text = { Text("Add player") }
-                )
+                if (!isGuest) {
+                    ExtendedFloatingActionButton(
+                        onClick = onAddPlayer,
+                        icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                        text = { Text("Add player") }
+                    )
+                }
             }
         }
     ) { innerPadding ->

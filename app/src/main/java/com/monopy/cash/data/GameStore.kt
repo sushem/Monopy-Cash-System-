@@ -3,6 +3,7 @@ package com.monopy.cash.data
 import android.content.Context
 import com.monopy.cash.model.Account
 import com.monopy.cash.model.Asset
+import com.monopy.cash.model.BoardState
 import com.monopy.cash.model.DEFAULT_BANK_CASH
 import com.monopy.cash.model.Settings
 import com.monopy.cash.model.Transaction
@@ -25,6 +26,12 @@ class GameStore private constructor(context: Context) {
 
     private val _settings = MutableStateFlow(loadSettings())
     val settings: StateFlow<Settings> = _settings.asStateFlow()
+
+    private val _board = MutableStateFlow(loadBoard())
+    val board: StateFlow<BoardState> = _board.asStateFlow()
+
+    /** Set by the LAN session so the host can hand out every change. */
+    var onStateChanged: (() -> Unit)? = null
 
     fun account(id: String?): Account? = _accounts.value.firstOrNull { it.id == id }
 
@@ -215,8 +222,92 @@ class GameStore private constructor(context: Context) {
         return runCatching { Settings.fromJson(JSONObject(raw)) }.getOrDefault(Settings())
     }
 
+    // ---- board play ------------------------------------------------------------
+
+    private fun snapshot() = GameSnapshot(_accounts.value, _board.value)
+
+    private fun applySnapshot(snapshot: GameSnapshot) {
+        _accounts.value = snapshot.accounts
+        _board.value = snapshot.board
+        save(snapshot.accounts)
+        saveBoard(snapshot.board)
+        onStateChanged?.invoke()
+    }
+
+    fun startBoardGame() = applySnapshot(BoardEngine.start(snapshot()))
+
+    fun stopBoardGame() = applySnapshot(BoardEngine.stop(snapshot()))
+
+    fun rollDice() = applySnapshot(BoardEngine.roll(snapshot()))
+
+    fun buyTile() = applySnapshot(BoardEngine.buy(snapshot()))
+
+    fun declineTile() = applySnapshot(BoardEngine.declineBuy(snapshot()))
+
+    fun dismissCard() = applySnapshot(BoardEngine.dismissCard(snapshot()))
+
+    fun payBail() = applySnapshot(BoardEngine.payBail(snapshot()))
+
+    fun endTurn() = applySnapshot(BoardEngine.endTurn(snapshot()))
+
+    fun buildHouse(tileIndex: Int, delta: Int) = applySnapshot(BoardEngine.build(snapshot(), tileIndex, delta))
+
+    /**
+     * Finds or creates the player a joining device plays as, and seats them at the
+     * table if a game is already running.
+     */
+    fun claimPlayer(name: String, colorArgb: Int, startingCash: Long): String {
+        val existing = _accounts.value.firstOrNull { !it.isBank && it.name.equals(name, ignoreCase = true) }
+        val id = existing?.id ?: run {
+            addPlayer(name, colorArgb, startingCash, withdrawFromBank = true)
+            _accounts.value.last { !it.isBank }.id
+        }
+        ensureSeated(id)
+        return id
+    }
+
+    private fun ensureSeated(playerId: String) {
+        val board = _board.value
+        if (!board.started || playerId in board.order) return
+        _board.value = board.copy(
+            order = board.order + playerId,
+            positions = board.positions + (playerId to 0)
+        )
+        saveBoard(_board.value)
+        onStateChanged?.invoke()
+    }
+
+    // ---- whole-game snapshot, for the devices joined to a host -------------------
+
+    fun exportState(): JSONObject = JSONObject().apply {
+        put("accounts", JSONArray().also { array -> _accounts.value.forEach { array.put(it.toJson()) } })
+        put("board", _board.value.toJson())
+    }
+
+    /** Replaces everything with the host's picture of the game. */
+    fun importState(json: JSONObject) {
+        val array = json.optJSONArray("accounts") ?: JSONArray()
+        val accounts = (0 until array.length()).map { Account.fromJson(array.getJSONObject(it)) }
+        if (accounts.none { it.isBank }) return
+        _accounts.value = accounts
+        _board.value = json.optJSONObject("board")?.let { BoardState.fromJson(it) } ?: BoardState()
+        save(accounts)
+        saveBoard(_board.value)
+    }
+
+    private fun saveBoard(board: BoardState) {
+        prefs.edit().putString(KEY_BOARD, board.toJson().toString()).apply()
+    }
+
+    private fun loadBoard(): BoardState {
+        val raw = prefs.getString(KEY_BOARD, null) ?: return BoardState()
+        return runCatching { BoardState.fromJson(JSONObject(raw)) }.getOrDefault(BoardState())
+    }
+
     /** Clears every account and starts over with a fresh bank. */
     fun newGame() {
+        _board.value = BoardState()
+        saveBoard(_board.value)
         update { defaultAccounts() }
     }
 
@@ -234,6 +325,7 @@ class GameStore private constructor(context: Context) {
         val updated = transform(_accounts.value)
         _accounts.value = updated
         save(updated)
+        onStateChanged?.invoke()
     }
 
     private fun save(accounts: List<Account>) {
@@ -264,6 +356,7 @@ class GameStore private constructor(context: Context) {
         private const val PREFS_NAME = "monopy_cash"
         private const val KEY_ACCOUNTS = "accounts"
         private const val KEY_SETTINGS = "settings"
+        private const val KEY_BOARD = "board"
 
         @Volatile
         private var instance: GameStore? = null

@@ -54,6 +54,7 @@ fun AccountDetailScreen(
     account: Account,
     otherAccounts: List<Account>,
     quickAmounts: List<Long>,
+    isGuest: Boolean,
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onAdjust: (amount: Long) -> Unit,
@@ -82,8 +83,10 @@ fun AccountDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onEdit) {
-                        Icon(Icons.Filled.Edit, contentDescription = "Edit name and colour")
+                    if (!isGuest) {
+                        IconButton(onClick = onEdit) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Edit name and colour")
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -233,7 +236,9 @@ fun AccountDetailScreen(
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        TextButton(onClick = onAddAsset) { Text("Add property") }
+                        if (!isGuest) {
+                            TextButton(onClick = onAddAsset) { Text("Add property") }
+                        }
                     }
                 }
 
@@ -250,6 +255,7 @@ fun AccountDetailScreen(
                 items(account.assets, key = { "asset-" + it.id }) { asset ->
                     AssetRow(
                         asset = asset,
+                        enabled = !isGuest,
                         onEdit = { onEditAsset(asset.id) },
                         onChangeHouses = { delta -> onChangeHouses(asset.id, delta) }
                     )
@@ -294,8 +300,10 @@ fun AccountDetailScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    IconButton(onClick = { onUndo(transaction.id) }) {
-                        Icon(Icons.Filled.Undo, contentDescription = "Undo this entry")
+                    if (!isGuest) {
+                        IconButton(onClick = { onUndo(transaction.id) }) {
+                            Icon(Icons.Filled.Undo, contentDescription = "Undo this entry")
+                        }
                     }
                 }
             }
@@ -356,9 +364,15 @@ private fun LoanCard(account: Account, onBorrow: () -> Unit, onRepay: () -> Unit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AssetRow(asset: Asset, onEdit: () -> Unit, onChangeHouses: (Int) -> Unit) {
+private fun AssetRow(
+    asset: Asset,
+    enabled: Boolean,
+    onEdit: () -> Unit,
+    onChangeHouses: (Int) -> Unit
+) {
     Card(
         onClick = onEdit,
+        enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
@@ -380,7 +394,9 @@ private fun AssetRow(asset: Asset, onEdit: () -> Unit, onChangeHouses: (Int) -> 
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            HouseStepper(houses = asset.houses, onChange = { onChangeHouses(it - asset.houses) })
+            if (enabled) {
+                HouseStepper(houses = asset.houses, onChange = { onChangeHouses(it - asset.houses) })
+            }
         }
     }
 }
